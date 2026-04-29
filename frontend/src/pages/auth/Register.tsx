@@ -67,9 +67,15 @@ export default function Register() {
             <div>
               <label className="block text-xs text-white/40 tracking-wider uppercase mb-2">Email</label>
               <input
-                {...register('email', { required: 'Email is required' })}
+                {...register('email', { 
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^[a-zA-Z0-9._%+-]+@gmail\.com$/,
+                    message: 'Please use a Gmail address (example@gmail.com)'
+                  }
+                })}
                 type="email"
-                placeholder="you@example.com"
+                placeholder="you@gmail.com"
                 className={inputClass}
               />
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
