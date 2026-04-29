@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: rogue-x-api
+    runtime: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node seed.js && node server.js
+    envVars:
+      - key: JWT_SECRET
+        value: roguex_secret_2026_production
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
