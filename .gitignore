@@ -1,0 +1,5 @@
+node_modules/
+backend/roguex.db
+.env
+env.txt
+dist/
