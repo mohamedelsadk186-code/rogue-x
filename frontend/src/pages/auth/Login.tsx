@@ -6,6 +6,7 @@ import { authApi } from '../../api/auth'
 import { useAuthStore } from '../../store/authStore'
 import Button from '../../components/ui/Button'
 import { GoogleLogin } from '@react-oauth/google'
+import { authRequestErrorMessage } from '../../utils/authErrors'
 
 interface LoginForm {
   email: string
@@ -30,8 +31,8 @@ export default function Login() {
       const res = await authApi.login(data)
       setAuth(res.data.user, res.data.token)
       navigate(redirect)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed')
+    } catch (err: unknown) {
+      setError(authRequestErrorMessage(err, 'Login failed'))
     } finally {
       setLoading(false)
     }

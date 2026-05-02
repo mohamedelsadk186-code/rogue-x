@@ -6,6 +6,7 @@ import { authApi } from '../../api/auth'
 import { useAuthStore } from '../../store/authStore'
 import Button from '../../components/ui/Button'
 import { GoogleLogin } from '@react-oauth/google'
+import { authRequestErrorMessage } from '../../utils/authErrors'
 
 interface RegisterForm {
   name: string
@@ -30,8 +31,8 @@ export default function Register() {
       const res = await authApi.register({ name: data.name, email: data.email, password: data.password })
       setAuth(res.data.user, res.data.token)
       navigate('/')
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed')
+    } catch (err: unknown) {
+      setError(authRequestErrorMessage(err, 'Registration failed'))
     } finally {
       setLoading(false)
     }
