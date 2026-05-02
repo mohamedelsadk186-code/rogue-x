@@ -7,15 +7,32 @@ const { initDb } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+function normalizeOrigin(url) {
+  const s = (url || '').trim();
+  if (!s) return s;
+  return s.replace(/\/$/, '');
+}
+
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000'].map(normalizeOrigin);
 const extraOrigins = (process.env.CLIENT_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => normalizeOrigin(s))
   .filter(Boolean);
+
+const allowedOrigins = new Set([...defaultOrigins, ...extraOrigins]);
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: [...defaultOrigins, ...extraOrigins], credentials: true }));
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.has(normalizeOrigin(origin))) return cb(null, true);
+      cb(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Routes
