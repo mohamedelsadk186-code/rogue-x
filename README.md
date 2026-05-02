@@ -32,6 +32,32 @@ Required keys depend on features you enable:
 - **Apple verification**: `APPLE_CLIENT_ID` (must match frontend Services ID)
 - **Cloudinary**: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 
+### Google Sign-In (يشيل رسالة Configure VITE_GOOGLE_CLIENT_ID…)
+
+تحتاج **نفس** معرف عميل الويب (**Web Client ID**) في مكانين:
+
+| المتغير | أين يُعرَّف | الغرض |
+|--------|---------------|--------|
+| `VITE_GOOGLE_CLIENT_ID` | **الواجهة** (`frontend/.env` محليًا؛ على Render في **خدمة Static** قبل `npm run build`) | زر «Sign in with Google» (@react-oauth/google) |
+| `GOOGLE_CLIENT_ID` | **الباك‑إند** (`backend/env.txt` محليًا؛ على Render في **خدمة الـ API**) | التحقق من الـ JWT الذي يرسله Google (`backend/services/oauth.js`) |
+
+**خطوات Google Cloud Console (مختصرة):**
+
+1. أنشئ مشروعًا أو اختر مشروعًا في [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **OAuth consent screen** (نوع External أو Internal حسب احتياجك).
+2. **Credentials** → **Create credentials** → **OAuth client ID** → نوع التطبيق **Web application**.
+3. **Authorized JavaScript origins** أضف على الأقل:
+   - محليًا: `http://localhost:5173`
+   - إنتاج: `https://your-frontend-domain` (مثل `https://rogue-x.onrender.com`)
+4. احفظ **Client ID** (ينتهي عادةً بـ `.apps.googleusercontent.com`).
+5. انسخه إلى:
+   - `VITE_GOOGLE_CLIENT_ID=...` في الواجهة  
+   - `GOOGLE_CLIENT_ID=...` في الباك‑إند (نفس القيمة).
+
+**مهم:**
+
+- الواجهة تُجمَّع المتغيرات وقت البناء؛ بعد تغيير `VITE_GOOGLE_CLIENT_ID` على Render **يجب إعادة نشر/بناء** خدمة الـ Static.
+- الباك‑إند يحمّل `GOOGLE_*` وقت التشغيل؛ بعد تغييره **أعد نشر** خدمة الـ API فقط.
+
 ## Quick Start
 
 ### 1. Install all dependencies
