@@ -82,7 +82,7 @@ npm run dev
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@roguex.com | admin123 |
+| Admin | mohamedelsadk186@gmail.com | admin123 |
 | Manager | manager@roguex.com | manager123 |
 | Customer | customer@roguex.com | customer123 |
 
