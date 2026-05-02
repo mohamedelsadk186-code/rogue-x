@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { adminApi } from '../../api/admin'
 import { productsApi, type Product } from '../../api/products'
 import Button from '../../components/ui/Button'
+import { useAuthStore } from '../../store/authStore'
 
 interface BannerForm {
   title: string
@@ -13,6 +14,10 @@ interface BannerForm {
 }
 
 export default function HomepageEditor() {
+  const { can } = useAuthStore()
+  const canRead = useMemo(() => can('homepage.read'), [can])
+  const canWrite = useMemo(() => can('homepage.update'), [can])
+
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
@@ -22,6 +27,11 @@ export default function HomepageEditor() {
   const { register, handleSubmit, reset } = useForm<BannerForm>()
 
   useEffect(() => {
+    if (!canRead) {
+      setLoading(false)
+      return
+    }
+
     Promise.all([
       adminApi.getHomepage(),
       productsApi.getAll(),
@@ -30,7 +40,7 @@ export default function HomepageEditor() {
       setFeaturedIds(hpRes.data.featured_products || [])
       setProducts(prodRes.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }, [canRead])
 
   const toggleFeatured = (id: number) => {
     setFeaturedIds(prev =>
@@ -39,6 +49,10 @@ export default function HomepageEditor() {
   }
 
   const onSubmit = async (data: BannerForm) => {
+    if (!canWrite) {
+      alert('Missing permission to update homepage')
+      return
+    }
     setSaving(true)
     try {
       await adminApi.updateHomepage({ banner: data, featured_products: featuredIds })
@@ -53,6 +67,15 @@ export default function HomepageEditor() {
 
   const inputClass = "w-full bg-noir border border-white/10 text-white px-3 py-2 text-sm outline-none focus:border-gold/60 transition-colors placeholder-white/20"
 
+  if (!canRead) {
+    return (
+      <div className="p-8">
+        <h1 className="font-display text-3xl font-bold text-white">Homepage Editor</h1>
+        <p className="text-white/45 text-sm mt-2">You do not have permission to view homepage settings.</p>
+      </div>
+    )
+  }
+
   if (loading) {
     return <div className="p-8"><div className="animate-spin w-6 h-6 border-2 border-gold border-t-transparent rounded-full" /></div>
   }
@@ -64,31 +87,31 @@ export default function HomepageEditor() {
         <p className="text-white/40 text-sm mt-1">Customize your homepage content</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 max-w-2xl">
+      <form onSubmit={handleSubmit(onSubmit)} className={`space-y-8 max-w-2xl ${!canWrite ? 'opacity-60' : ''}`}>
         {/* Banner settings */}
         <div className="bg-noir-800 border border-white/5 p-6">
           <h2 className="text-xs font-semibold text-gold tracking-widest uppercase mb-6">Hero Banner</h2>
           <div className="space-y-4">
             <div>
               <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Title</label>
-              <input {...register('title')} className={inputClass} placeholder="ROGUE X" />
+              <input {...register('title')} disabled={!canWrite} className={inputClass} placeholder="ROGUE X" />
             </div>
             <div>
               <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Subtitle</label>
-              <input {...register('subtitle')} className={inputClass} placeholder="Define Your Edge" />
+              <input {...register('subtitle')} disabled={!canWrite} className={inputClass} placeholder="Define Your Edge" />
             </div>
             <div>
               <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Description</label>
-              <textarea {...register('description')} rows={3} className={inputClass} />
+              <textarea {...register('description')} disabled={!canWrite} rows={3} className={inputClass} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">CTA Text</label>
-                <input {...register('cta_text')} className={inputClass} placeholder="Shop Now" />
+                <input {...register('cta_text')} disabled={!canWrite} className={inputClass} placeholder="Shop Now" />
               </div>
               <div>
                 <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">CTA Link</label>
-                <input {...register('cta_link')} className={inputClass} placeholder="/category/t-shirts" />
+                <input {...register('cta_link')} disabled={!canWrite} className={inputClass} placeholder="/category/t-shirts" />
               </div>
             </div>
           </div>
@@ -103,6 +126,7 @@ export default function HomepageEditor() {
               <button
                 key={p.id}
                 type="button"
+                disabled={!canWrite}
                 onClick={() => toggleFeatured(p.id)}
                 className={`flex items-center gap-2 p-2 border text-left transition-all ${
                   featuredIds.includes(p.id)
@@ -124,8 +148,9 @@ export default function HomepageEditor() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Button type="submit" size="lg" loading={saving}>Save Changes</Button>
+          <Button type="submit" size="lg" loading={saving} disabled={!canWrite}>Save Changes</Button>
           {saved && <span className="text-green-400 text-sm">Changes saved!</span>}
+          {!canWrite && <span className="text-white/35 text-xs">Read-only mode</span>}
         </div>
       </form>
     </div>

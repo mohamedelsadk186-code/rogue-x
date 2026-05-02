@@ -6,8 +6,20 @@ interface Props {
 }
 
 export default function AdminRoute({ children }: Props) {
-  const { user } = useAuthStore()
-  if (!user) return <Navigate to="/auth/login" replace />
+  const { user, can } = useAuthStore()
+  if (!user) return <Navigate to="/auth/login?redirect=/admin" replace />
   if (user.role !== 'admin' && user.role !== 'manager') return <Navigate to="/" replace />
+
+  const hasDashboard = can('dashboard.view')
+  const hasAnything =
+    user.role === 'admin' ||
+    hasDashboard ||
+    can('products.read') ||
+    can('orders.read') ||
+    can('users.read') ||
+    can('homepage.read') ||
+    can('pages.read')
+
+  if (!hasAnything) return <Navigate to="/" replace />
   return <>{children}</>
 }

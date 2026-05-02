@@ -6,10 +6,14 @@ export interface Product {
   slug: string
   category: 'T-shirts' | 'pants' | 'jackets' | 'hoodies' | string
   price: number
+  compare_at_price?: number | null
   description: string
   image_url: string
+  images?: string[]
   sizes: string[]
+  colors?: string[]
   stock: number
+  status?: 'available' | 'unavailable'
   featured: number
   created_at: string
 }

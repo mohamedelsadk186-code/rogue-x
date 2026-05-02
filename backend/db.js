@@ -30,6 +30,8 @@ async function initDb() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'customer',
+      oauth_provider TEXT,
+      oauth_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -39,10 +41,14 @@ async function initDb() {
       slug TEXT UNIQUE NOT NULL,
       category TEXT NOT NULL,
       price REAL NOT NULL,
+      compare_at_price REAL,
       description TEXT NOT NULL,
       image_url TEXT NOT NULL,
+      images TEXT NOT NULL DEFAULT '[]',
       sizes TEXT NOT NULL DEFAULT '["S","M","L","XL","XXL"]',
+      colors TEXT NOT NULL DEFAULT '[]',
       stock INTEGER NOT NULL DEFAULT 100,
+      status TEXT NOT NULL DEFAULT 'available',
       featured INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -75,7 +81,44 @@ async function initDb() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS manager_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      permission_key TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, permission_key),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS pages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT,
+      content TEXT NOT NULL DEFAULT '',
+      seo_title TEXT,
+      seo_description TEXT,
+      is_published INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id),
+      FOREIGN KEY (updated_by) REFERENCES users(id)
+    );
   `);
+
+  // Lightweight migrations for existing databases
+  ensureColumn('users', 'oauth_provider', 'TEXT');
+  ensureColumn('users', 'oauth_id', 'TEXT');
+
+  ensureColumn('products', 'compare_at_price', 'REAL');
+  ensureColumn('products', 'images', `TEXT NOT NULL DEFAULT '[]'`);
+  ensureColumn('products', 'colors', `TEXT NOT NULL DEFAULT '[]'`);
+  ensureColumn('products', 'status', `TEXT NOT NULL DEFAULT 'available'`);
+
+  seedDefaultManagerPermissions();
 
   // Insert default homepage settings if not present
   const bannerCheck = query("SELECT key FROM homepage_settings WHERE key = 'banner'");
@@ -98,6 +141,55 @@ async function initDb() {
   }
 
   return db;
+}
+
+function ensureColumn(table, column, definition) {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  const cols = result[0]?.values?.map((row) => row[1]) || [];
+  if (!cols.includes(column)) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    saveDb();
+  }
+}
+
+function seedDefaultManagerPermissions() {
+  const managerIds = query("SELECT id FROM users WHERE role = 'manager'", []);
+  const defaults = [
+    'dashboard.view',
+
+    // Catalog
+    'products.read',
+    'products.create',
+    'products.update',
+    'products.delete',
+
+    // Operations
+    'orders.read',
+    'orders.update',
+
+    // People management
+    'users.read',
+    'users.updateRole',
+    'users.delete',
+
+    // CMS + marketing
+    'pages.read',
+    'pages.create',
+    'pages.update',
+    'pages.delete',
+
+    // Homepage editorial
+    'homepage.read',
+    'homepage.update',
+  ];
+  for (const manager of managerIds) {
+    for (const permission of defaults) {
+      run(
+        'INSERT OR IGNORE INTO manager_permissions (user_id, permission_key) VALUES (?, ?)',
+        [manager.id, permission]
+      );
+    }
+  }
 }
 
 // Helper: run a query that returns rows

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { ordersApi, type Order } from '../../api/orders'
+import { useAuthStore } from '../../store/authStore'
 
 const statusColors: Record<string, string> = {
   pending: 'text-yellow-400 bg-yellow-400/10',
@@ -15,11 +16,18 @@ export default function OrdersManager() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
+  const { can } = useAuthStore()
+  const canRead = useMemo(() => can('orders.read'), [can])
+  const canUpdate = useMemo(() => can('orders.update'), [can])
 
   useEffect(() => {
+    if (!canRead) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     ordersApi.getAllAdmin().then(r => setOrders(r.data)).finally(() => setLoading(false))
-  }, [])
+  }, [canRead])
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
@@ -31,6 +39,15 @@ export default function OrdersManager() {
   }
 
   const filtered = filterStatus ? orders.filter(o => o.status === filterStatus) : orders
+
+  if (!canRead) {
+    return (
+      <div className="p-8">
+        <h1 className="font-display text-3xl font-bold text-white">Orders</h1>
+        <p className="text-white/45 text-sm mt-2">You do not have permission to view orders.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8">
@@ -80,8 +97,9 @@ export default function OrdersManager() {
                   <td className="px-4 py-3">
                     <select
                       value={order.status}
+                      disabled={!canUpdate}
                       onChange={e => handleStatusChange(order.id, e.target.value)}
-                      className={`bg-noir border text-xs px-2 py-1 outline-none capitalize cursor-pointer ${statusColors[order.status] || ''} border-white/10`}
+                      className={`bg-noir border text-xs px-2 py-1 outline-none capitalize cursor-pointer ${statusColors[order.status] || ''} border-white/10 ${!canUpdate ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>

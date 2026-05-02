@@ -1,3 +1,7 @@
+# ROGUE X — Render Blueprint
+# بعد الإنشاء: عيِّن القيم في Dashboard للمتغيّرات ذات sync: false (OAuth، Cloudinary، JWT، عنوان الواجهة).
+# CLIENT_ORIGINS: أضف رابط الواجهة المنشورة (مثلاً https://rogue-x-web.onrender.com) وفصل أكثر من رابط بفاصلة.
+# تحذير: startCommand الحالي يشغّل seed.js قبل كل تشغيل — قد يعيد تهيئة بيانات SQLite. للإنتاج الدائم فكّر بقرص Render أو ترحيل إلى قاعدة بيانات حقيقية.
 services:
   - type: web
     name: rogue-x-api
@@ -5,9 +9,42 @@ services:
     buildCommand: cd backend && npm install
     startCommand: cd backend && node seed.js && node server.js
     envVars:
-      - key: JWT_SECRET
-        value: roguex_secret_2026_production
       - key: PORT
         value: 5000
       - key: NODE_ENV
         value: production
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_ORIGINS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_IOS_CLIENT_ID
+        sync: false
+      - key: GOOGLE_ALLOWED_AUDIENCES
+        sync: false
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+  - type: web
+    name: rogue-x-web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_APPLE_CLIENT_ID
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

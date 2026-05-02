@@ -18,4 +18,11 @@ export const adminApi = {
   updateUserRole: (id: number, role: string) =>
     client.patch(`/users/${id}/role`, { role }),
   deleteUser: (id: number) => client.delete(`/users/${id}`),
+  getUserPermissionsMatrix: (id: number) =>
+    client.get<{ permissions: string[]; available: string[] }>(`/users/${id}/permissions`),
+  updateUserPermissionsMatrix: (id: number, permissions: string[]) =>
+    client.put(`/users/${id}/permissions`, { permissions }),
+  refreshMyPermissions: () => client.get<{ permissions: string[] }>('/admin/me/permissions'),
+  askAssistant: (prompt: string) =>
+    client.post<{ answer: string }>('/admin/assistant', { prompt }),
 }

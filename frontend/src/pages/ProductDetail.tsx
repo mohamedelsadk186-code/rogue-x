@@ -11,6 +11,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState<Product | null>(null)
   const [related, setRelated] = useState<Product[]>([])
   const [selectedSize, setSelectedSize] = useState('')
+  const [selectedImage, setSelectedImage] = useState('')
   const [addedFeedback, setAddedFeedback] = useState(false)
   const [loading, setLoading] = useState(true)
   const addItem = useCartStore(s => s.addItem)
@@ -19,6 +20,7 @@ export default function ProductDetail() {
     setLoading(true)
     productsApi.getOne(id!).then(r => {
       setProduct(r.data)
+      setSelectedImage(r.data.images?.[0] || r.data.image_url)
       setSelectedSize('')
       productsApi.getAll({ category: r.data.category }).then(related => {
         setRelated(related.data.filter(p => p.id !== r.data.id).slice(0, 4))
@@ -72,7 +74,7 @@ export default function ProductDetail() {
             className="aspect-[3/4] overflow-hidden bg-noir-700"
           >
             <img
-              src={product.image_url}
+              src={selectedImage || product.image_url}
               alt={product.name}
               className="w-full h-full object-cover"
             />
@@ -87,11 +89,29 @@ export default function ProductDetail() {
           >
             <p className="text-xs text-gold tracking-[0.3em] uppercase mb-3">{product.category}</p>
             <h1 className="font-display text-4xl md:text-5xl font-bold text-white mb-4">{product.name}</h1>
-            <p className="text-3xl font-semibold text-gold mb-8">${product.price.toFixed(2)}</p>
+            <div className="flex items-end gap-3 mb-8">
+              <p className="text-3xl font-semibold text-gold">${product.price.toFixed(2)}</p>
+              {product.compare_at_price && product.compare_at_price > product.price && (
+                <p className="text-white/30 text-lg line-through">${product.compare_at_price.toFixed(2)}</p>
+              )}
+            </div>
 
             <div className="w-12 h-px bg-gold/40 mb-8" />
 
             <p className="text-white/60 leading-relaxed mb-10">{product.description}</p>
+
+            {!!product.colors?.length && (
+              <div className="mb-8">
+                <p className="text-xs text-white/40 tracking-widest uppercase mb-3">Available Colors</p>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map(color => (
+                    <span key={color} className="px-3 py-1 text-xs border border-white/15 text-white/70 capitalize">
+                      {color}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Size selector */}
             <div className="mb-8">
@@ -119,10 +139,10 @@ export default function ProductDetail() {
             <Button
               size="lg"
               onClick={handleAddToCart}
-              disabled={!selectedSize}
+              disabled={!selectedSize || product.status === 'unavailable'}
               className="w-full sm:w-auto"
             >
-              {addedFeedback ? 'Added to Cart ✓' : 'Add to Cart'}
+              {product.status === 'unavailable' ? 'Currently Unavailable' : addedFeedback ? 'Added to Cart ✓' : 'Add to Cart'}
             </Button>
 
             {!selectedSize && (
@@ -132,11 +152,28 @@ export default function ProductDetail() {
             {/* Stock info */}
             <div className="mt-8 pt-8 border-t border-white/5">
               <p className="text-xs text-white/30">
-                <span className="text-green-400">In Stock</span> · {product.stock} units available
+                <span className={product.status === 'unavailable' ? 'text-red-400' : 'text-green-400'}>
+                  {product.status === 'unavailable' ? 'Unavailable' : 'In Stock'}
+                </span>{' '}
+                · {product.stock} units available
               </p>
             </div>
           </motion.div>
         </div>
+
+        {!!product.images?.length && (
+          <div className="mt-5 flex gap-2 overflow-x-auto">
+            {product.images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedImage(img)}
+                className={`w-16 h-20 border ${selectedImage === img ? 'border-gold' : 'border-white/15'}`}
+              >
+                <img src={img} alt={`${product.name}-${idx}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Related Products */}
         {related.length > 0 && (

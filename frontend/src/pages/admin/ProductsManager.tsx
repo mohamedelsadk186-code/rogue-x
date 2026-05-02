@@ -2,22 +2,29 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import { productsApi, type Product } from '../../api/products'
+import { uploadsApi } from '../../api/uploads'
 import Button from '../../components/ui/Button'
+import { useAuthStore } from '../../store/authStore'
 
 interface ProductForm {
   name: string
   slug: string
   category: string
   price: number
+  compare_at_price?: number
   description: string
-  image_url: string
+  colors: string
   stock: number
+  status: 'available' | 'unavailable'
   featured: boolean
 }
 
 const categories = ['t-shirts', 'pants', 'jackets', 'hoodies']
 
 export default function ProductsManager() {
+  const canCreate = useAuthStore(s => s.can('products.create'))
+  const canUpdate = useAuthStore(s => s.can('products.update'))
+  const canDelete = useAuthStore(s => s.can('products.delete'))
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -25,8 +32,11 @@ export default function ProductsManager() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [filterCat, setFilterCat] = useState('')
+  const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  const [success, setSuccess] = useState('')
+  const [uploading, setUploading] = useState(false)
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProductForm>()
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProductForm>()
 
   const load = () => {
     setLoading(true)
@@ -37,26 +47,74 @@ export default function ProductsManager() {
 
   const openAdd = () => {
     setEditing(null)
-    reset({ category: 't-shirts', featured: false })
+    setUploadedImages([])
+    reset({ category: 't-shirts', featured: false, status: 'available' })
     setModalOpen(true)
   }
 
   const openEdit = (p: Product) => {
     setEditing(p)
+    setUploadedImages(p.images?.length ? p.images : [p.image_url])
     reset({
       name: p.name, slug: p.slug, category: p.category, price: p.price,
-      description: p.description, image_url: p.image_url, stock: p.stock, featured: p.featured === 1,
+      compare_at_price: p.compare_at_price || undefined,
+      description: p.description,
+      colors: p.colors?.join(', ') || '',
+      stock: p.stock,
+      status: p.status || 'available',
+      featured: p.featured === 1,
     })
     setModalOpen(true)
   }
 
+  const handleFiles = async (files: FileList | null) => {
+    if (!files?.length) return
+    if (!canUpdate) {
+      alert('Missing permission to upload images')
+      return
+    }
+
+    try {
+      setUploading(true)
+      const incoming = Array.from(files).slice(0, Math.max(0, 8 - uploadedImages.length))
+      if (!incoming.length) return
+      const response = await uploadsApi.uploadProductImages(incoming)
+      const urls = response.data.images.map(i => i.url)
+      setUploadedImages(prev => [...prev, ...urls].slice(0, 8))
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message || 'Image upload failed (check Cloudinary env vars)')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const onSubmit = async (data: ProductForm) => {
+    if (uploadedImages.length === 0) {
+      alert('Please upload at least one product image')
+      return
+    }
     setSaving(true)
     try {
-      const payload = { ...data, price: Number(data.price), stock: Number(data.stock), sizes: ['S','M','L','XL','XXL'], featured: data.featured ? 1 : 0 }
+      const parsedColors = data.colors
+        .split(',')
+        .map(c => c.trim())
+        .filter(Boolean)
+      const payload = {
+        ...data,
+        price: Number(data.price),
+        compare_at_price: data.compare_at_price ? Number(data.compare_at_price) : null,
+        stock: Number(data.stock),
+        colors: parsedColors,
+        image_url: uploadedImages[0],
+        images: uploadedImages,
+        sizes: ['S', 'M', 'L', 'XL'],
+        featured: data.featured ? 1 : 0,
+      }
       if (editing) await productsApi.update(editing.id, payload)
       else await productsApi.create(payload)
       setModalOpen(false)
+      setSuccess(editing ? 'Product updated successfully' : 'Product added successfully')
+      setTimeout(() => setSuccess(''), 2500)
       load()
     } catch (err: any) {
       alert(err.response?.data?.error || 'Save failed')
@@ -77,7 +135,6 @@ export default function ProductsManager() {
   }
 
   const inputClass = "w-full bg-noir border border-white/10 text-white px-3 py-2 text-sm outline-none focus:border-gold/60 transition-colors placeholder-white/20"
-
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
@@ -85,8 +142,9 @@ export default function ProductsManager() {
           <h1 className="font-display text-3xl font-bold text-white">Products</h1>
           <p className="text-white/40 text-sm mt-1">{products.length} items</p>
         </div>
-        <Button onClick={openAdd}>Add Product</Button>
+        {canCreate && <Button onClick={openAdd}>Add Product</Button>}
       </div>
+      {success && <div className="mb-5 px-4 py-3 bg-green-500/10 border border-green-500/30 text-green-300 text-sm">{success}</div>}
 
       {/* Category filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
@@ -130,10 +188,12 @@ export default function ProductsManager() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => openEdit(p)} className="text-xs text-white/50 hover:text-white transition-colors px-2 py-1 border border-white/10 hover:border-white/30">Edit</button>
-                      <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id} className="text-xs text-red-400/60 hover:text-red-400 transition-colors px-2 py-1 border border-red-400/10 hover:border-red-400/30">
-                        {deletingId === p.id ? '...' : 'Delete'}
-                      </button>
+                      {canUpdate && <button onClick={() => openEdit(p)} className="text-xs text-white/50 hover:text-white transition-colors px-2 py-1 border border-white/10 hover:border-white/30">Edit</button>}
+                      {canDelete && (
+                        <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id} className="text-xs text-red-400/60 hover:text-red-400 transition-colors px-2 py-1 border border-red-400/10 hover:border-red-400/30">
+                          {deletingId === p.id ? '...' : 'Delete'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -190,17 +250,61 @@ export default function ProductsManager() {
                     <input {...register('price', { required: true, min: 0 })} type="number" step="0.01" className={inputClass} placeholder="0.00" />
                   </div>
                   <div>
+                    <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Price After Discount (optional)</label>
+                    <input {...register('compare_at_price', { min: 0 })} type="number" step="0.01" className={inputClass} placeholder="0.00" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Stock</label>
                     <input {...register('stock', { required: true, min: 0 })} type="number" className={inputClass} placeholder="100" />
                   </div>
+                  <div>
+                    <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Status</label>
+                    <select {...register('status', { required: true })} className={inputClass}>
+                      <option value="available">Available</option>
+                      <option value="unavailable">Unavailable</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Image URL</label>
-                  <input {...register('image_url', { required: true })} className={inputClass} placeholder="https://..." />
+                  <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Available Colors</label>
+                  <input {...register('colors')} className={inputClass} placeholder="Black, White, Olive" />
                 </div>
                 <div>
                   <label className="block text-xs text-white/40 uppercase tracking-wider mb-1">Description</label>
                   <textarea {...register('description', { required: true })} rows={3} className={inputClass} placeholder="Product description..." />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/40 uppercase tracking-wider mb-2">Product Images (Drag & Drop)</label>
+                  <label
+                    className="block border border-dashed border-white/20 hover:border-gold/50 transition-colors p-6 text-center text-sm text-white/50 cursor-pointer"
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault()
+                      handleFiles(e.dataTransfer.files)
+                    }}
+                  >
+                    {uploading ? 'Uploading…' : 'Drop images here or click to upload'}
+                    <input type="file" accept="image/*" multiple className="hidden" disabled={uploading || !canUpdate} onChange={e => handleFiles(e.target.files)} />
+                  </label>
+                  {uploadedImages.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mt-3">
+                      {uploadedImages.map((img, idx) => (
+                        <div key={idx} className="relative">
+                          <img src={img} alt={`preview-${idx}`} className="w-full h-20 object-cover border border-white/10" />
+                          <button
+                            type="button"
+                            disabled={!canUpdate}
+                            onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute top-1 right-1 w-5 h-5 bg-noir/80 text-white text-xs"
+                          >
+                            x
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input {...register('featured')} type="checkbox" className="accent-gold w-4 h-4" />

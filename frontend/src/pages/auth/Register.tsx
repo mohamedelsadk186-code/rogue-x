@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { authApi } from '../../api/auth'
 import { useAuthStore } from '../../store/authStore'
 import Button from '../../components/ui/Button'
+import { GoogleLogin } from '@react-oauth/google'
 
 interface RegisterForm {
   name: string
@@ -19,6 +20,8 @@ export default function Register() {
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>()
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+  const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID || ''
 
   const onSubmit = async (data: RegisterForm) => {
     setLoading(true)
@@ -29,6 +32,76 @@ export default function Register() {
       navigate('/')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!appleClientId) return
+    const script = document.createElement('script')
+    script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js'
+    script.async = true
+    document.head.appendChild(script)
+    return () => {
+      try {
+        document.head.removeChild(script)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [appleClientId])
+
+  const googleSuccess = async (credential?: string | null) => {
+    if (!credential) {
+      setError('Google credential missing')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await authApi.googleOAuth(credential)
+      setAuth(res.data.user, res.data.token)
+      navigate('/')
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Google authentication failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const appleSignIn = async () => {
+    if (!appleClientId) {
+      setError('Apple Sign In is not configured (missing VITE_APPLE_CLIENT_ID)')
+      return
+    }
+    const apple = (window as any).AppleID
+    if (!apple?.auth?.signIn) {
+      setError('Apple Sign In script not loaded yet. Try again in a moment.')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError('')
+      apple.auth.init({
+        clientId: appleClientId,
+        scope: 'name email',
+        redirectURI: window.location.origin,
+        usePopup: true,
+      })
+
+      const response = await apple.auth.signIn()
+      const identityToken = response.authorization?.id_token as string | undefined
+      if (!identityToken) {
+        setError('Apple did not return an identity token')
+        return
+      }
+      const apiRes = await authApi.appleOAuth(identityToken)
+      setAuth(apiRes.data.user, apiRes.data.token)
+      navigate('/')
+    } catch (err: any) {
+      setError(err?.error || err.response?.data?.error || err.message || 'Apple authentication failed')
     } finally {
       setLoading(false)
     }
@@ -69,13 +142,10 @@ export default function Register() {
               <input
                 {...register('email', { 
                   required: 'Email is required',
-                  pattern: {
-                    value: /^[a-zA-Z0-9._%+-]+@gmail\.com$/,
-                    message: 'Please use a Gmail address (example@gmail.com)'
-                  }
+                  pattern: { value: /^\S+@\S+\.\S+$/, message: 'Please enter a valid email' }
                 })}
                 type="email"
-                placeholder="you@gmail.com"
+                placeholder="you@example.com"
                 className={inputClass}
               />
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
@@ -114,6 +184,36 @@ export default function Register() {
               Create Account
             </Button>
           </form>
+
+          <div className="mt-5 space-y-3">
+            {googleClientId ? (
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={(creds) => googleSuccess((creds as any).credential)}
+                  onError={() => setError('Google authentication failed')}
+                  theme="filled_black"
+                  size="large"
+                  width="100%"
+                  text="signup_with"
+                  shape="rectangular"
+                  useOneTap={false}
+                />
+              </div>
+            ) : (
+              <div className="text-xs text-white/35 border border-white/10 px-3 py-3">
+                Configure <span className="font-mono">VITE_GOOGLE_CLIENT_ID</span> + <span className="font-mono">GOOGLE_CLIENT_ID</span> on the backend to enable Google Sign-In.
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={loading || !appleClientId}
+              onClick={() => appleSignIn()}
+              className={`w-full border border-white/15 text-white/80 hover:text-white hover:border-white/30 transition-colors py-2.5 text-sm ${!appleClientId ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              Sign up with Apple
+            </button>
+          </div>
 
           <div className="mt-6 pt-6 border-t border-white/5 text-center">
             <p className="text-sm text-white/40">

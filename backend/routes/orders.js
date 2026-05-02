@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, run, get } = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { adminOrManagerMiddleware } = require('../middleware/admin');
+const { requirePermission } = require('../middleware/permissions');
 
 // POST /api/orders
 router.post('/', authMiddleware, (req, res) => {
@@ -49,7 +49,7 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 // GET /api/orders/admin/all
-router.get('/admin/all', authMiddleware, adminOrManagerMiddleware, (req, res) => {
+router.get('/admin/all', authMiddleware, requirePermission('orders.read'), (req, res) => {
   const orders = query(
     'SELECT o.*, u.name as user_name, u.email as user_email FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.id DESC',
     []
@@ -76,7 +76,7 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 // PATCH /api/orders/:id/status
-router.patch('/:id/status', authMiddleware, adminOrManagerMiddleware, (req, res) => {
+router.patch('/:id/status', authMiddleware, requirePermission('orders.update'), (req, res) => {
   const { status } = req.body;
   const valid = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });

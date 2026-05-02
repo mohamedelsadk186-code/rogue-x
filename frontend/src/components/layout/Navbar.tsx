@@ -1,8 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { useCartStore } from '../../store/cartStore'
+import { pagesApi, type CmsPage } from '../../api/pages'
 
 const categories = [
   { label: 'T-Shirts', slug: 't-shirts' },
@@ -17,6 +18,13 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [cmsPages, setCmsPages] = useState<CmsPage[]>([])
+
+  useEffect(() => {
+    pagesApi.publicList()
+      .then(r => setCmsPages(r.data.slice(0, 6)))
+      .catch(() => {})
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -44,6 +52,23 @@ export default function Navbar() {
                 className="text-sm font-medium text-white/70 hover:text-gold transition-colors tracking-wider uppercase"
               >
                 {cat.label}
+              </Link>
+            ))}
+
+            <Link
+              to="/pages"
+              className="text-sm font-medium text-white/70 hover:text-gold transition-colors tracking-wider uppercase"
+            >
+              Pages
+            </Link>
+
+            {cmsPages.slice(0, 3).map(p => (
+              <Link
+                key={p.id}
+                to={`/p/${p.slug}`}
+                className="text-sm font-medium text-white/55 hover:text-gold transition-colors tracking-wider uppercase"
+              >
+                {p.title}
               </Link>
             ))}
           </div>
@@ -86,7 +111,7 @@ export default function Navbar() {
                         <p className="text-sm font-medium text-white truncate">{user.name}</p>
                         <p className="text-xs text-white/50 truncate">{user.email}</p>
                       </div>
-                      {user.role === 'admin' && (
+                      {(user.role === 'admin' || user.role === 'manager') && (
                         <Link
                           to="/admin"
                           onClick={() => setUserMenuOpen(false)}
@@ -155,6 +180,24 @@ export default function Navbar() {
                   className="block py-2 text-sm text-white/70 hover:text-gold transition-colors tracking-wider uppercase"
                 >
                   {cat.label}
+                </Link>
+              ))}
+              <Link
+                to="/pages"
+                onClick={() => setMenuOpen(false)}
+                className="block py-2 text-sm text-white/70 hover:text-gold transition-colors tracking-wider uppercase"
+              >
+                Pages
+              </Link>
+
+              {cmsPages.map(p => (
+                <Link
+                  key={`m-${p.id}`}
+                  to={`/p/${p.slug}`}
+                  onClick={() => setMenuOpen(false)}
+                  className="block py-2 text-sm text-white/60 hover:text-gold transition-colors tracking-wider"
+                >
+                  {p.title}
                 </Link>
               ))}
             </div>

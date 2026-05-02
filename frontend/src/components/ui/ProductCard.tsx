@@ -36,7 +36,12 @@ export default function ProductCard({ product, index = 0 }: Props) {
         <div className="mt-3 space-y-1">
           <p className="text-xs text-white/40 tracking-widest uppercase">{product.category}</p>
           <h3 className="text-sm font-medium text-white group-hover:text-gold transition-colors">{product.name}</h3>
-          <p className="text-sm font-semibold text-gold">${product.price.toFixed(2)}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gold">${product.price.toFixed(2)}</p>
+            {product.compare_at_price && product.compare_at_price > product.price && (
+              <p className="text-xs text-white/30 line-through">${product.compare_at_price.toFixed(2)}</p>
+            )}
+          </div>
         </div>
       </Link>
     </motion.div>
